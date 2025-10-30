@@ -6,24 +6,28 @@ import numpy as np
 import pygame
 import time
 import os
-import pyttsx3
 import threading
 import easyocr
 from scipy.spatial import distance as dist
 
-# === VOICE ALERT SETUP (FIXED) ===
-engine = pyttsx3.init()
-engine.setProperty('rate', 150)
-engine.setProperty('volume', 1.0)
-time.sleep(0.5)
+# === BEEP SETUP ONLY (NO VOICE) ===
+beep_path = "beep.wav"
+if not os.path.exists(beep_path):
+    st.error("`beep.wav` not found! Run `python generate_beep.py` first.")
+    st.stop()
 
-def speak(text):
+try:
+    pygame.mixer.pre_init(frequency=22050, size=-16, channels=2, buffer=512)
+    pygame.mixer.init()
+except:
+    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+
+beep = pygame.mixer.Sound(beep_path)
+beep.set_volume(1.0)
+
+def play_beep():
     def run():
-        try:
-            engine.say(text)
-            engine.runAndWait()
-        except:
-            pass
+        beep.play()
     threading.Thread(target=run, daemon=True).start()
 
 # === TURN DETECTION (LANE CURVATURE) - FIXED: NO FALSE ALERTS ===
@@ -125,21 +129,7 @@ if "last_traffic_light_alert" not in st.session_state:
 # === SETUP ===
 st.set_page_config(page_title="SpeedGuard", page_icon="Car", layout="wide")
 st.title("SpeedGuard: AI Dashcam Safety System")
-st.markdown("**High-Speed, Blind Spot, Turn, Speed Limit, Traffic Light Alerts**")
-
-# === FIXED PYGAME INIT (CORRECT SYNTAX) ===
-try:
-    pygame.mixer.pre_init(frequency=22050, size=-16, channels=2, buffer=512)
-    pygame.mixer.init()
-except:
-    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
-
-beep_path = "beep.wav"
-if not os.path.exists(beep_path):
-    st.error("`beep.wav` not found! Run `python generate_beep.py` first.")
-    st.stop()
-beep = pygame.mixer.Sound(beep_path)
-beep.set_volume(1.0)
+st.markdown("**High-Speed, Blind Spot, Turn, Speed Limit, Traffic Light Alerts + BEEP**")
 
 # === FIXED YOLO LOADING (NO .bn ERROR) ===
 @st.cache_resource
@@ -234,15 +224,14 @@ if not cap_front.isOpened() or not cap_back.isOpened():
     st.error("Failed to open one or both video streams.")
     st.stop()
 
-# === TEST VOICE + BEEP ===
+# === TEST BEEP ===
 col_beep1, col_beep2 = st.columns([1, 3])
 with col_beep1:
-    if st.button("TEST ALERT", type="secondary"):
-        beep.play()
-        speak("SpeedGuard alert test!")
-        st.toast("Alert played!")
+    if st.button("TEST BEEP", type="secondary"):
+        play_beep()
+        st.toast("Beep played!")
 with col_beep2:
-    force_beep = st.checkbox("FORCE ALERT (Every 5 sec)", value=False)
+    force_beep = st.checkbox("FORCE BEEP (Every 5 sec)", value=False)
 
 # === DISPLAY PLACEHOLDERS ===
 frame_ph = st.empty()
@@ -311,8 +300,7 @@ if st.session_state.streaming:
                     cv2.putText(frame2, "HIGH SPEED!", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         if highspeed_detected and (current_time - st.session_state.last_highspeed_alert > 5.0):
             alert = "HIGH-SPEED VEHICLE APPROACHING!"
-            beep.play()
-            speak("High speed vehicle approaching!")
+            play_beep()
             st.session_state.last_highspeed_alert = current_time
 
         # === FRONT CAM: BLIND SPOTS ===
@@ -333,16 +321,14 @@ if st.session_state.streaming:
         if (blind_left or blind_right) and (current_time - st.session_state.last_blind_alert > 5.0):
             side = "left" if blind_left else "right"
             alert = f"BLIND SPOT {side.upper()}!"
-            beep.play()
-            speak(f"Blind spot {side}!")
+            play_beep()
             st.session_state.last_blind_alert = current_time
 
         # === TURN DETECTION (FRONT CAM ONLY) ===
         turn_alert = detect_curvature(frame1)
         if turn_alert and (current_time - st.session_state.last_turn_alert > 8.0):
             alert = turn_alert
-            beep.play()
-            speak("Sharp turn ahead! Slow down!")
+            play_beep()
             cv2.putText(frame1, "TURN AHEAD!", (200, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             st.session_state.last_turn_alert = current_time
 
@@ -350,8 +336,7 @@ if st.session_state.streaming:
         speed_limit = detect_speed_limit(frame1, results1.boxes)
         if speed_limit and (current_time - st.session_state.last_speed_limit_alert > 10.0):
             alert = f"SPEED LIMIT DETECTED: {speed_limit}"
-            beep.play()
-            speak(f"Speed limit {speed_limit}!")
+            play_beep()
             cv2.putText(frame1, f"SPEED LIMIT: {speed_limit}", (200, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             st.session_state.last_speed_limit_alert = current_time
 
@@ -359,16 +344,14 @@ if st.session_state.streaming:
         traffic_light = detect_traffic_light(frame1, results1.boxes)
         if traffic_light and (current_time - st.session_state.last_traffic_light_alert > 5.0):
             alert = traffic_light
-            beep.play()
-            speak(traffic_light.replace("!", ""))
+            play_beep()
             cv2.putText(frame1, traffic_light, (200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             st.session_state.last_traffic_light_alert = current_time
 
         # === FORCE ALERT ===
         if force_beep and (time.time() - last_beep_time > 5):
             alert = "FORCE ALERT: OK"
-            beep.play()
-            speak("Test alert activated!")
+            play_beep()
             last_beep_time = time.time()
 
         st.session_state.prev_centers = current_centers.copy()
