@@ -8,7 +8,6 @@ import time
 import os
 import pyttsx3
 import threading
-import face_recognition
 import easyocr
 from scipy.spatial import distance as dist
 
@@ -26,16 +25,6 @@ def speak(text):
         except:
             pass
     threading.Thread(target=run, daemon=True).start()
-
-# === DROWSINESS DETECTION (EYE ASPECT RATIO) ===
-def eye_aspect_ratio(eye):
-    A = dist.euclidean(eye[1], eye[5])
-    B = dist.euclidean(eye[2], eye[4])
-    C = dist.euclidean(eye[0], eye[3])
-    return (A + B) / (2.0 * C) if C > 0 else 0
-
-EAR_THRESHOLD = 0.25
-EAR_CONSEC_FRAMES = 20
 
 # === TURN DETECTION (LANE CURVATURE) - FIXED: NO FALSE ALERTS ===
 def detect_curvature(frame):
@@ -110,7 +99,7 @@ def detect_traffic_light(frame, boxes):
                 return "GREEN LIGHT!"
     return None
 
-# === SESSION STATE ===
+# === SESSION STATE (REMOVED distraction/drowsiness) ===
 for key in ["front_url", "back_url", "front_ip", "back_ip", "stop", "last_time", "demo_mode"]:
     if key not in st.session_state:
         st.session_state[key] = None if "ip" not in key and "url" not in key else "192.168.1.100"
@@ -128,21 +117,15 @@ if "last_blind_alert" not in st.session_state:
     st.session_state.last_blind_alert = 0
 if "last_turn_alert" not in st.session_state:
     st.session_state.last_turn_alert = 0
-if "last_distraction_alert" not in st.session_state:
-    st.session_state.last_distraction_alert = 0
 if "last_speed_limit_alert" not in st.session_state:
     st.session_state.last_speed_limit_alert = 0
 if "last_traffic_light_alert" not in st.session_state:
     st.session_state.last_traffic_light_alert = 0
-if "last_drowsiness_alert" not in st.session_state:
-    st.session_state.last_drowsiness_alert = 0
-if "drowsy_counter" not in st.session_state:
-    st.session_state.drowsy_counter = 0
 
 # === SETUP ===
 st.set_page_config(page_title="SpeedGuard", page_icon="Car", layout="wide")
 st.title("SpeedGuard: AI Dashcam Safety System")
-st.markdown("**High-Speed, Blind Spot, Turn, Distraction, Speed Limit, Traffic Light, Drowsiness Alerts**")
+st.markdown("**High-Speed, Blind Spot, Turn, Speed Limit, Traffic Light Alerts**")
 
 # === FIXED PYGAME INIT (CORRECT SYNTAX) ===
 try:
@@ -362,46 +345,6 @@ if st.session_state.streaming:
             speak("Sharp turn ahead! Slow down!")
             cv2.putText(frame1, "TURN AHEAD!", (200, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
             st.session_state.last_turn_alert = current_time
-
-        # === DISTRACTION & DROWSINESS: FRONT CAM (DRIVER FACE) ===
-        distraction_detected = False
-        drowsy_detected = False
-        face_locations = face_recognition.face_locations(frame1)
-        if face_locations:
-            top, right, bottom, left = face_locations[0]
-            face_center_x = (left + right) // 2
-            w = frame1.shape[1]
-            if face_center_x < w // 3 or face_center_x > 2 * w // 3:
-                distraction_detected = True
-                cv2.putText(frame1, "LOOK AHEAD!", (200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-
-            face_landmarks = face_recognition.face_landmarks(frame1, face_locations)
-            if face_landmarks:
-                left_eye = face_landmarks[0].get('left_eye', [])
-                right_eye = face_landmarks[0].get('right_eye', [])
-                if len(left_eye) == 6 and len(right_eye) == 6:
-                    left_ear = eye_aspect_ratio(left_eye)
-                    right_ear = eye_aspect_ratio(right_eye)
-                    ear = (left_ear + right_ear) / 2.0
-                    if ear < EAR_THRESHOLD:
-                        st.session_state.drowsy_counter += 1
-                        if st.session_state.drowsy_counter >= EAR_CONSEC_FRAMES:
-                            drowsy_detected = True
-                            cv2.putText(frame1, "DROWSY!", (200, 250), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-                    else:
-                        st.session_state.drowsy_counter = 0
-
-        if distraction_detected and (current_time - st.session_state.last_distraction_alert > 8.0):
-            alert = "LOOK AHEAD! DISTRACTION DETECTED!"
-            beep.play()
-            speak("Look ahead! Stay focused!")
-            st.session_state.last_distraction_alert = current_time
-
-        if drowsy_detected and (current_time - st.session_state.last_drowsiness_alert > 10.0):
-            alert = "DROWSY! TAKE A BREAK!"
-            beep.play()
-            speak("You seem drowsy! Take a break!")
-            st.session_state.last_drowsiness_alert = current_time
 
         # === SPEED LIMIT DETECTION (FRONT CAM) ===
         speed_limit = detect_speed_limit(frame1, results1.boxes)
