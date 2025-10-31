@@ -8,3 +8,8 @@ espeak
 espeak-data
 libespeak1
 portaudio19-dev
+# === CRITICAL FOR PYGAME ===
+libsdl2-dev
+libsdl2-image-dev
+libsdl2-mixer-dev
+libsdl2-ttf-dev
