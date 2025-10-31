@@ -1,13 +1,13 @@
-streamlit==1.38.0
-opencv-python-headless==4.10.0.84
-ultralytics==8.2.103
-numpy==1.26.4
-pygame==2.6.0 --only-binary=:all:
-pyttsx3==2.91
-easyocr==1.7.1
-scipy==1.13.1
-gdown==5.2.0
-torch==2.3.1+cpu
-torchvision==0.18.1+cpu
-torchaudio==2.3.1+cpu
-Pillow==10.4.0
+streamlit
+opencv-python-headless
+ultralytics
+numpy
+pygame --only-binary=:all:
+pyttsx3
+easyocr
+scipy
+gdown
+torch
+torchvision
+torchaudio
+Pillow
